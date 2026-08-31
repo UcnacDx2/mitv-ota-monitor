@@ -15,6 +15,13 @@ function readString(value: unknown, name: string, maxLength: number) {
   return normalized;
 }
 
+function readOptionalString(value: unknown, maxLength: number) {
+  if (typeof value !== 'string') return '';
+  const normalized = value.trim();
+  if (normalized.length > maxLength) throw new Error('Optional field is invalid');
+  return normalized;
+}
+
 function requestFingerprint(request: Request) {
   const ip = request.headers.get('cf-connecting-ip') ?? 'unknown';
   const userAgent = request.headers.get('user-agent') ?? 'unknown';
@@ -31,14 +38,15 @@ export async function POST(request: Request) {
 
     const displayName = readString(input.displayName, 'displayName', 80);
     const product = readString(input.product, 'product', 96);
-    const device = readString(input.device, 'device', 96);
-    const moduleName = readString(input.module, 'module', 96);
-    const lang = readString(input.lang, 'lang', 12);
+    const codename = readString(input.codename, 'codename', 96);
+    const device = readOptionalString(input.device, 96) || `${product}.${codename}`;
+    const moduleName = readOptionalString(input.module, 96) || `${product}.${codename}.firmware`;
+    const lang = readOptionalString(input.lang, 12) || 'zh_CN';
     const currentVersion = readString(input.minimumKnownVersion, 'minimumKnownVersion', 96);
     const serial = readString(input.serial, 'serial', 128);
     const deviceIdentity = readString(input.deviceIdentity, 'deviceIdentity', 128);
 
-    if (![product, device, moduleName].every((value) => MODEL_VALUE.test(value))) {
+    if (![product, codename, device, moduleName].every((value) => MODEL_VALUE.test(value))) {
       return Response.json({ ok: false, error: '机型参数格式不合法' }, { status: 400 });
     }
     if (!VERSION_VALUE.test(currentVersion) || !LANG_VALUE.test(lang)) {
