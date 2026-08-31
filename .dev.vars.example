@@ -1,0 +1,11 @@
+MITV_SN=replace-with-device-serial
+MITV_DEVICE_IDENTITY=replace-with-device-identity
+CHECK_TOKEN=replace-with-a-long-random-token
+
+# Optional public/model-level overrides
+MITV_PRODUCT=OBPCN1N
+MITV_DEVICE=OBPCN1N.finch
+MITV_MODULE=OBPCN1N.finch.firmware
+MITV_DISPLAY_NAME=Xiaomi TV (finch)
+MITV_CURRENT_VERSION=OS3.0.115.0.UFFMATV
+MITV_LANG=zh_CN
