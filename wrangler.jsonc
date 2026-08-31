@@ -31,7 +31,7 @@
   },
   "routes": [
     {
-      "pattern": "mitvota.111917.xyz",
+      "pattern": "mitv-ota.111917.xyz",
       "custom_domain": true
     }
   ],
