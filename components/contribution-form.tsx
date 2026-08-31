@@ -4,7 +4,7 @@ import { useState, type SyntheticEvent } from 'react';
 
 type SubmitState = { kind: 'idle' | 'loading' | 'success' | 'error'; message: string };
 
-const adbCommand = `adb shell 'product=$(getprop ro.product.name); codename=$(getprop ro.product.device); version=$(getprop ro.build.version.incremental); serial=$(getprop ro.serialno); model=$(getprop ro.product.model); lang=$(getprop persist.sys.locale | tr - _); identity=$(cat /sys/class/net/eth0/address 2>/dev/null || cat /sys/class/net/wlan0/address 2>/dev/null); printf "displayName=%s\\nproduct=%s\\ndevice=%s.%s\\nmodule=%s.%s.firmware\\nminimumKnownVersion=%s\\nlang=%s\\nserial=%s\\ndeviceIdentity=%s\\n" "$model" "$product" "$product" "$codename" "$product" "$codename" "$version" "$lang" "$serial" "$identity"'`;
+const adbCommand = `adb shell 'product=$(getprop ro.short_assm_mn); codename=$(getprop ro.product.device); version=$(getprop ro.build.version.incremental); serial=$(getprop ro.serialno); model=$(getprop ro.product.model); lang=$(getprop ro.product.locale); identity=$(getprop mitv.factory.mac); printf "displayName=%s\\nproduct=%s\\ndevice=%s.%s\\nmodule=%s.%s.firmware\\nminimumKnownVersion=%s\\nlang=%s\\nserial=%s\\ndeviceIdentity=%s\\n" "$model" "$product" "$product" "$codename" "$product" "$codename" "$version" "$lang" "$serial" "$identity"'`;
 
 export function ContributionForm() {
   const [state, setState] = useState<SubmitState>({ kind: 'idle', message: '' });
@@ -42,7 +42,7 @@ export function ContributionForm() {
           电视开启 ADB 后，在电脑终端运行下面命令。它会按本站字段名输出，可直接照着填写；不同机型若某项为空，请以设备实际属性为准。
         </p>
         <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-all rounded-md border border-[var(--border)] bg-[var(--background)] p-3 font-mono text-xs leading-5"><code>{adbCommand}</code></pre>
-        <p className="mt-2 text-xs text-[var(--muted-foreground)]">其中 device/module 按 Xiaomi TV 常见规则由 product + codename 组合生成；SN 与 MAC 仅用于实时 OTA 验证，不会写入机型库。</p>
+        <p className="mt-2 text-xs text-[var(--muted-foreground)]">这条命令已在 finch / OBPCN1N 实机验证；device/module 由 product + codename 组合生成。若其他机型缺少 ro.short_assm_mn 或 mitv.factory.mac，请先核对实际 OTA 参数。SN 与 MAC 仅用于实时 OTA 验证，不会写入机型库。</p>
       </div>
       <div className="form-grid">
         <label>显示名称<input name="displayName" required maxLength={80} placeholder="例如：小米电视 S Pro 65" /></label>
