@@ -64,14 +64,7 @@ export function ContributionForm() {
           <label>语言覆盖<input name="lang" maxLength={12} placeholder="默认：zh_CN" /></label>
         </div>
       </details>
-      <label className="flex items-start gap-3 rounded-lg border border-[var(--border)] p-4 text-sm">
-        <input className="mt-1" type="checkbox" name="monitorContinuously" />
-        <span>
-          <strong className="block font-medium">允许本站持续监测这个机型</strong>
-          <span className="mt-1 block text-xs text-[var(--muted-foreground)]">勾选后，SN 与设备身份会在服务器端加密保存，仅用于后续 Xiaomi OTA 定时查询；不勾选则只做本次验证，身份不会保存。</span>
-        </span>
-      </label>
-      <p className="privacy-note">无论是否持续监测，SN 与设备身份都不会显示在网页或提交到 GitHub。</p>
+      <p className="privacy-note">提交成功后，SN 与设备身份会在服务器端加密保存，仅用于该机型后续 Xiaomi OTA 定时查询；不会显示在网页或提交到 GitHub。</p>
       <button className="primary-button" type="submit" disabled={state.kind === 'loading'}>
         {state.kind === 'loading' ? '验证中…' : '验证并贡献机型'}
       </button>

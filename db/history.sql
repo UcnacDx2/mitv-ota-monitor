@@ -35,3 +35,15 @@ CREATE TABLE IF NOT EXISTS ota_monitor_credentials (
   credential_ciphertext TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS ota_version_probes (
+  probe_key TEXT PRIMARY KEY NOT NULL,
+  model_id TEXT NOT NULL,
+  source_version TEXT NOT NULL,
+  target_version TEXT NOT NULL,
+  actual_target_version TEXT,
+  checked_at TEXT NOT NULL,
+  ok INTEGER NOT NULL,
+  package_count INTEGER NOT NULL,
+  error TEXT
+);

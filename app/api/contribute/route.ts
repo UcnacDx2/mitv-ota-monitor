@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { env } from 'cloudflare:workers';
 import { encryptMonitorCredentials } from '@/lib/ota/credentials';
-import { archiveOtaObservation, claimContributionWindow, saveMonitorCredentials, upsertCommunityModel } from '@/lib/ota/store';
+import { archiveOtaObservation, claimContributionWindow, recordVersionProbe, saveMonitorCredentials, upsertCommunityModel } from '@/lib/ota/store';
 import type { OtaPublicConfig } from '@/lib/ota/types';
 import { checkXiaomiOta } from '@/lib/ota/xiaomi';
 
@@ -46,7 +46,6 @@ export async function POST(request: Request) {
     const currentVersion = readString(input.minimumKnownVersion, 'minimumKnownVersion', 96);
     const serial = readString(input.serial, 'serial', 128);
     const deviceIdentity = readString(input.deviceIdentity, 'deviceIdentity', 128);
-    const monitorContinuously = input.monitorContinuously === true || input.monitorContinuously === 'on';
 
     if (![product, codename, device, moduleName].every((value) => MODEL_VALUE.test(value))) {
       return Response.json({ ok: false, error: '机型参数格式不合法' }, { status: 400 });
@@ -83,20 +82,25 @@ export async function POST(request: Request) {
 
     await upsertCommunityModel(env.DB, config, status);
     await archiveOtaObservation(env.DB, config, status);
-    if (monitorContinuously) {
-      if (!env.CHECK_TOKEN) {
-        return Response.json({ ok: false, error: '持续监测暂不可用：服务器缺少加密密钥' }, { status: 503 });
-      }
-      const encrypted = await encryptMonitorCredentials(env.CHECK_TOKEN, { serial, deviceIdentity });
-      await saveMonitorCredentials(env.DB, config, encrypted.iv, encrypted.ciphertext);
+    if (status.latestVersion && status.latestVersion !== currentVersion) {
+      await recordVersionProbe(env.DB, {
+        modelId: `${product}::${device}::${moduleName}`.toLowerCase(),
+        sourceVersion: currentVersion,
+        targetVersion: status.latestVersion,
+      }, status);
     }
+    if (!env.CHECK_TOKEN) {
+      return Response.json({ ok: false, error: '持续监测暂不可用：服务器缺少加密密钥' }, { status: 503 });
+    }
+    const encrypted = await encryptMonitorCredentials(env.CHECK_TOKEN, { serial, deviceIdentity });
+    await saveMonitorCredentials(env.DB, config, encrypted.iv, encrypted.ciphertext);
     return Response.json(
       {
         ok: true,
         model: { displayName, product, device, module: moduleName, lang, minimumKnownVersion: currentVersion },
         latestVersion: status.latestVersion,
         packageCount: status.packages.length,
-        monitoring: monitorContinuously,
+        monitoring: true,
       },
       { status: 201 },
     );

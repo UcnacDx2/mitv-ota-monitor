@@ -50,6 +50,28 @@ export type MonitorTarget = OtaPublicConfig & {
   credentialCiphertext: string;
 };
 
+export type VersionProbe = {
+  modelId: string;
+  sourceVersion: string;
+  targetVersion: string;
+};
+
+export type VersionProbeResult = VersionProbe & {
+  actualTargetVersion: string | null;
+  checkedAt: string;
+  ok: boolean;
+  packageCount: number;
+  error: string | null;
+};
+
+export type ModelPage = {
+  items: CommunityModel[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
 export type RuntimeEnv = {
   DB: D1Database;
   MITV_PRODUCT?: string;
