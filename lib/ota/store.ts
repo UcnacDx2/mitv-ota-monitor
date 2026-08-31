@@ -231,6 +231,24 @@ export async function getCommunityModel(db: D1Database, id: string): Promise<Com
   };
 }
 
+export async function updateCommunityModelMetadata(
+  db: D1Database,
+  id: string,
+  values: {
+    displayName: string;
+    currentVersion: string;
+    latestVersion: string | null;
+    lang: string;
+  },
+) {
+  await ensureCommunitySchema(db);
+  await db.prepare(
+    `UPDATE ota_models
+     SET display_name = ?, minimum_known_version = ?, latest_version = ?, lang = ?
+     WHERE id = ?`,
+  ).bind(values.displayName, values.currentVersion, values.latestVersion, values.lang, id).run();
+}
+
 export async function listCommunityModelsPage(
   db: D1Database,
   page: number,

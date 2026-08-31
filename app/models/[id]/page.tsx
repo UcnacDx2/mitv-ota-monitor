@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getCommunityModel, listHistoricalPackagesByModelId, listVersionProbeResults } from '@/lib/ota/store';
+import type { HistoricalPackage } from '@/lib/ota/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +17,21 @@ function formatBytes(bytes: number | null) {
   return `${value.toFixed(unit > 1 ? 2 : 0)} ${units[unit]}`;
 }
 
+function compareVersions(left: string, right: string) {
+  const a = left.match(/\d+/g)?.map(Number) ?? [];
+  const b = right.match(/\d+/g)?.map(Number) ?? [];
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    const delta = (a[index] ?? 0) - (b[index] ?? 0);
+    if (delta !== 0) return delta;
+  }
+  return left.localeCompare(right);
+}
+
+function packageHref(pkg: HistoricalPackage) {
+  return pkg.mirrors[0] ?? null;
+}
+
 export default async function ModelDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const modelId = decodeURIComponent(id);
@@ -28,6 +43,13 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
     listVersionProbeResults(env.DB, model.id),
   ]);
   const versions = [...new Set(packages.map((pkg) => pkg.version).filter((value): value is string => !!value))];
+  const grouped = versions
+    .sort((a, b) => compareVersions(b, a))
+    .map((version) => ({
+      version,
+      full: packages.filter((pkg) => pkg.version === version && pkg.type === 'FULL_PACKAGE'),
+      incremental: packages.filter((pkg) => pkg.version === version && pkg.type === 'INCREMENT_PACKAGE'),
+    }));
 
   return (
     <main className="min-h-screen px-5 py-8 sm:px-8 lg:px-12">
@@ -38,7 +60,7 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
             <h1 className="mt-2 text-3xl font-semibold">{model.displayName}</h1>
             <p className="mt-2 font-mono text-xs text-[var(--muted-foreground)]">{model.product} · {model.device} · {model.module}</p>
           </div>
-          <Link className="api-link" href="/">返回机型库</Link>
+          <a className="api-link" href="/">返回机型库</a>
         </header>
 
         <section className="mt-6 grid gap-4 md:grid-cols-3">
@@ -54,23 +76,54 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
           {packages.length === 0 ? (
             <div className="empty-state">暂无历史固件。</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-left text-sm">
-                <thead><tr><th>目标版本</th><th>类型</th><th>基础版本</th><th>大小</th><th>MD5</th><th>首次发现</th><th>下载</th></tr></thead>
-                <tbody>
-                  {packages.map((pkg, index) => (
-                    <tr key={`${pkg.md5 ?? pkg.fileName ?? index}-${pkg.baseVersion ?? ''}`}>
-                      <td className="font-medium">{pkg.version ?? '—'}</td>
-                      <td>{pkg.type === 'FULL_PACKAGE' ? '全量包' : pkg.type === 'INCREMENT_PACKAGE' ? '增量包' : (pkg.type ?? '—')}</td>
-                      <td>{pkg.baseVersion || '—'}</td>
-                      <td>{formatBytes(pkg.fileSize)}</td>
-                      <td className="font-mono text-xs">{pkg.md5 ?? '—'}</td>
-                      <td>{new Date(pkg.firstSeenAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</td>
-                      <td className="max-w-[280px] text-xs">{pkg.mirrors[0] ? <a className="download-link" href={pkg.mirrors[0]} rel="noreferrer">{pkg.fileName ?? '下载'}</a> : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="divide-y divide-[var(--border)]">
+              {grouped.map((group) => (
+                <article className="p-5 sm:p-6" key={group.version}>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-xs text-[var(--muted-foreground)]">目标版本</p>
+                      <h3 className="mt-1 text-lg font-semibold">{group.version}</h3>
+                    </div>
+                    {group.full[0] && packageHref(group.full[0]) ? (
+                      <a className="primary-button" href={packageHref(group.full[0])!} rel="noreferrer">下载全量包 · {formatBytes(group.full[0].fileSize)}</a>
+                    ) : (
+                      <span className="text-sm text-[var(--muted-foreground)]">未归档全量包</span>
+                    )}
+                  </div>
+
+                  {group.full[0] && (
+                    <div className="mt-3 grid gap-2 text-xs text-[var(--muted-foreground)] sm:grid-cols-2">
+                      <div>MD5：<span className="font-mono">{group.full[0].md5 ?? '—'}</span></div>
+                      <div>首次发现：{new Date(group.full[0].firstSeenAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</div>
+                    </div>
+                  )}
+
+                  {group.incremental.length > 0 && (
+                    <details className="mt-4 rounded-lg border border-[var(--border)] p-4">
+                      <summary className="cursor-pointer text-sm font-medium">更多信息 · {group.incremental.length} 个差分包</summary>
+                      <div className="mt-4 grid gap-3">
+                        {group.incremental
+                          .sort((a, b) => compareVersions(b.baseVersion ?? '', a.baseVersion ?? ''))
+                          .map((pkg, index) => (
+                            <div className="rounded-lg bg-[var(--muted)]/40 p-3 text-sm" key={`${pkg.md5 ?? pkg.fileName ?? index}-${pkg.baseVersion ?? ''}`}>
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span>
+                                  适用版本：{packageHref(pkg) ? (
+                                    <a className="download-link font-mono" href={packageHref(pkg)!} rel="noreferrer">{pkg.baseVersion || '未知基础版本'}</a>
+                                  ) : (
+                                    <span className="font-mono">{pkg.baseVersion || '未知基础版本'}</span>
+                                  )}
+                                </span>
+                                <span className="text-xs text-[var(--muted-foreground)]">{formatBytes(pkg.fileSize)}</span>
+                              </div>
+                              <div className="mt-2 font-mono text-xs text-[var(--muted-foreground)]">MD5：{pkg.md5 ?? '—'}</div>
+                            </div>
+                          ))}
+                      </div>
+                    </details>
+                  )}
+                </article>
+              ))}
             </div>
           )}
         </section>

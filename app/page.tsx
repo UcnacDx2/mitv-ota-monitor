@@ -1,5 +1,4 @@
 import { env } from 'cloudflare:workers';
-import Link from 'next/link';
 import { listCommunityModelsPage } from '@/lib/ota/store';
 
 export const dynamic = 'force-dynamic';
@@ -27,7 +26,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             <p className="eyebrow">MiTV OTA Monitor</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">小米电视 OTA 机型库</h1>
           </div>
-          <Link className="primary-button text-center" href="/contribute">贡献机型</Link>
+          <a className="primary-button text-center" href="/contribute">贡献机型</a>
         </header>
 
         <form className="mt-6 flex gap-3" action="/" method="get">
@@ -47,7 +46,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         ) : (
           <section className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {models.items.map((model) => (
-              <Link
+              <a
                 key={model.id}
                 className="model-card transition hover:-translate-y-0.5"
                 href={`/models/${encodeURIComponent(model.id)}`}
@@ -60,16 +59,16 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
                   <div><dt>最低已知版本</dt><dd>{model.currentVersion}</dd></div>
                   <div><dt>最新发现版本</dt><dd>{model.latestVersion ?? '—'}</dd></div>
                 </dl>
-              </Link>
+              </a>
             ))}
           </section>
         )}
 
         {models.totalPages > 1 && (
           <nav className="mt-8 flex items-center justify-center gap-3 text-sm">
-            {models.page > 1 ? <Link className="api-link" href={pageHref(models.page - 1)}>上一页</Link> : <span />}
+            {models.page > 1 ? <a className="api-link" href={pageHref(models.page - 1)}>上一页</a> : <span />}
             <span className="text-[var(--muted-foreground)]">{models.page} / {models.totalPages}</span>
-            {models.page < models.totalPages ? <Link className="api-link" href={pageHref(models.page + 1)}>下一页</Link> : <span />}
+            {models.page < models.totalPages ? <a className="api-link" href={pageHref(models.page + 1)}>下一页</a> : <span />}
           </nav>
         )}
       </div>

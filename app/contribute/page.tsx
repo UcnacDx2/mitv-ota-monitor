@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { ContributionForm } from '@/components/contribution-form';
 
 export default function ContributePage() {
@@ -10,7 +9,7 @@ export default function ContributePage() {
             <p className="eyebrow">Contribute</p>
             <h1 className="mt-2 text-2xl font-semibold">贡献电视机型</h1>
           </div>
-          <Link className="api-link" href="/">返回机型库</Link>
+          <a className="api-link" href="/">返回机型库</a>
         </header>
         <section className="panel p-5 sm:p-6">
           <ContributionForm />
