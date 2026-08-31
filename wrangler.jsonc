@@ -1,0 +1,41 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mitv-ota-monitor",
+  "main": "dist/server/index.js",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "no_bundle": true,
+  "rules": [
+    {
+      "type": "ESModule",
+      "globs": ["**/*.js", "**/*.mjs"]
+    }
+  ],
+  "assets": {
+    "directory": "dist/client"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mitv-ota-monitor-db",
+      "database_id": "fd394039-6217-4364-a2f2-33f6e59810f0"
+    }
+  ],
+  "vars": {
+    "MITV_PRODUCT": "OBPCN1N",
+    "MITV_DEVICE": "OBPCN1N.finch",
+    "MITV_MODULE": "OBPCN1N.finch.firmware",
+    "MITV_DISPLAY_NAME": "Xiaomi TV (finch)",
+    "MITV_CURRENT_VERSION": "OS3.0.13.0.UFFMATV",
+    "MITV_LANG": "zh_CN"
+  },
+  "routes": [
+    {
+      "pattern": "mitvota.000311.xyz",
+      "custom_domain": true
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
