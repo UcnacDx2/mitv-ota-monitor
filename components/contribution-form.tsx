@@ -4,7 +4,7 @@ import { useState, type SyntheticEvent } from 'react';
 
 type SubmitState = { kind: 'idle' | 'loading' | 'success' | 'error'; message: string };
 
-const adbCommand = `adb shell 'printf "displayName=%s\\nproduct=%s\\ncodename=%s\\nminimumKnownVersion=%s\\nserial=%s\\ndeviceIdentity=%s\\n" "$(getprop ro.product.model)" "$(getprop ro.short_assm_mn)" "$(getprop ro.product.device)" "$(getprop ro.build.version.incremental)" "$(getprop ro.serialno)" "$(getprop mitv.factory.mac)"'`;
+const adbCommand = `adb shell 'product=$(getprop ro.short_assm_mn); codename=$(getprop ro.product.device); printf "displayName=%s\\nproduct=%s\\ncodename=%s\\ndevice=%s.%s\\nmodule=%s.%s.firmware\\nminimumKnownVersion=%s\\nlang=%s\\nserial=%s\\ndeviceIdentity=%s\\n" "$(getprop ro.product.model)" "$product" "$codename" "$product" "$codename" "$product" "$codename" "$(getprop ro.build.version.incremental)" "$(getprop ro.product.locale)" "$(getprop ro.serialno)" "$(getprop mitv.factory.mac)"'`;
 
 export function ContributionForm() {
   const [state, setState] = useState<SubmitState>({ kind: 'idle', message: '' });
@@ -39,10 +39,10 @@ export function ContributionForm() {
       <div className="rounded-lg border border-[var(--border)] bg-[var(--muted)]/30 p-4">
         <p className="font-medium">ADB 一键读取所需信息</p>
         <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-          电视开启 ADB 后，在电脑终端运行下面命令。通常只需复制这 6 项；本站会自动补齐 OTA 所需的 device、module 和语言参数。
+          电视开启 ADB 后，在电脑终端运行下面命令。ADB 路径会一次性读取并输出全部 OTA 字段，按输出完整填写即可。
         </p>
         <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-all rounded-md border border-[var(--border)] bg-[var(--background)] p-3 font-mono text-xs leading-5"><code>{adbCommand}</code></pre>
-        <p className="mt-2 text-xs text-[var(--muted-foreground)]">默认规则：device = product.codename，module = product.codename.firmware，lang = zh_CN。这条命令已在 finch / OBPCN1N 实机验证；特殊机型可在高级设置中覆盖默认值。</p>
+        <p className="mt-2 text-xs text-[var(--muted-foreground)]">这条命令已在 finch / OBPCN1N 实机验证。下面的简化表单主要给手动填写的用户使用；手填时才会在留空的高级字段上应用默认拼接规则。</p>
       </div>
       <div className="form-grid">
         <label>显示名称<input name="displayName" required maxLength={80} placeholder="例如：小米电视 S Pro 65" /></label>
