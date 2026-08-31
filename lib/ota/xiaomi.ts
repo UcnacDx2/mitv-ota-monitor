@@ -115,7 +115,7 @@ export async function checkXiaomiOta(config: OtaRuntimeConfig): Promise<OtaStatu
         checkedAt,
         ok: true,
         currentVersion: config.currentVersion,
-        latestVersion: config.currentVersion,
+        latestVersion: null,
         packages: [],
         error: null,
       };

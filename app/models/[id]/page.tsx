@@ -131,21 +131,22 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
         <section className="panel mt-6">
           <div className="border-b border-[var(--border)] px-5 py-4 sm:px-6">
             <h2 className="font-semibold">版本差分比对</h2>
-            <p className="mt-1 text-xs text-[var(--muted-foreground)]">每个“低版本 → 高版本”组合只探测一次；记录的是 Xiaomi OTA 实际返回的目标和包数量。</p>
+            <p className="mt-1 text-xs text-[var(--muted-foreground)]">实际请求只携带“探测源版本”；“探测时已知最新版本”只是当次探测的数据库快照，不会作为目标版本发给 Xiaomi。</p>
           </div>
           {probes.length === 0 ? (
             <div className="empty-state">暂无已完成的版本对比。</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-left text-sm">
-                <thead><tr><th>请求版本对</th><th>实际返回目标</th><th>包数</th><th>状态</th><th>检查时间</th></tr></thead>
+                <thead><tr><th>探测源版本</th><th>探测时已知最新版本</th><th>实际返回目标</th><th>包数</th><th>结果</th><th>检查时间</th></tr></thead>
                 <tbody>
                   {probes.map((probe) => (
                     <tr key={`${probe.sourceVersion}-${probe.targetVersion}`}>
-                      <td className="font-mono text-xs">{probe.sourceVersion} → {probe.targetVersion}</td>
-                      <td>{probe.actualTargetVersion ?? '—'}</td>
+                      <td className="font-mono text-xs">{probe.sourceVersion}</td>
+                      <td className="font-mono text-xs">{probe.targetVersion}</td>
+                      <td>{probe.packageCount > 0 ? (probe.actualTargetVersion ?? '—') : '—'}</td>
                       <td>{probe.packageCount}</td>
-                      <td>{probe.ok ? '成功' : (probe.error ?? '失败')}</td>
+                      <td>{probe.ok ? (probe.packageCount > 0 ? '发现更新包' : '无可用更新') : (probe.error ?? '失败')}</td>
                       <td>{new Date(probe.checkedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</td>
                     </tr>
                   ))}

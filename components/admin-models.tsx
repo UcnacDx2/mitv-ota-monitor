@@ -16,6 +16,7 @@ export function AdminModels() {
   const [token, setToken] = useState('');
   const [models, setModels] = useState<AdminModel[]>([]);
   const [message, setMessage] = useState('');
+  const [checking, setChecking] = useState(false);
 
   async function load() {
     setMessage('读取中…');
@@ -62,6 +63,33 @@ export function AdminModels() {
     setMessage('保存成功');
   }
 
+  async function runCheck() {
+    setChecking(true);
+    setMessage('正在执行 OTA 检查与差分探测…');
+    try {
+      const response = await fetch('/api/check', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const result = await response.json() as {
+        checked?: number;
+        succeeded?: number;
+        failed?: number;
+        error?: string;
+      };
+      if (!response.ok) {
+        setMessage(result.error ?? `检查失败（HTTP ${response.status}）`);
+        return;
+      }
+      setMessage(`检查完成：${result.checked ?? 0} 个目标，成功 ${result.succeeded ?? 0}，失败 ${result.failed ?? 0}`);
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '检查失败');
+    } finally {
+      setChecking(false);
+    }
+  }
+
   function update(index: number, field: keyof AdminModel, value: string) {
     setModels((current) => current.map((model, i) => i === index ? { ...model, [field]: value } : model));
   }
@@ -79,6 +107,9 @@ export function AdminModels() {
             autoComplete="off"
           />
           <button className="primary-button" type="button" onClick={load}>进入维护面板</button>
+          <button className="primary-button" type="button" onClick={runCheck} disabled={checking || !token}>
+            {checking ? '检查中…' : '立即检查 OTA'}
+          </button>
         </div>
         {message && <p className="mt-3 text-sm text-[var(--muted-foreground)]">{message}</p>}
       </section>

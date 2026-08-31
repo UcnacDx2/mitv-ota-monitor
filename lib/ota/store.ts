@@ -453,7 +453,7 @@ export async function listMonitorTargets(db: D1Database): Promise<MonitorTarget[
   await ensureHistorySchema(db);
   const result = await db.prepare(
     `SELECT m.id, m.display_name, m.product, m.device, m.module, m.lang,
-            COALESCE(NULLIF(m.latest_version, ''), m.minimum_known_version) AS monitor_version,
+            m.minimum_known_version AS monitor_version,
             c.credential_iv, c.credential_ciphertext
      FROM ota_models m
      INNER JOIN ota_monitor_credentials c ON c.model_id = m.id
