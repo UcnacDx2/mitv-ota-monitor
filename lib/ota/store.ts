@@ -236,17 +236,77 @@ export async function updateCommunityModelMetadata(
   id: string,
   values: {
     displayName: string;
+    product: string;
+    device: string;
+    module: string;
     currentVersion: string;
     latestVersion: string | null;
     lang: string;
   },
 ) {
   await ensureCommunitySchema(db);
-  await db.prepare(
-    `UPDATE ota_models
-     SET display_name = ?, minimum_known_version = ?, latest_version = ?, lang = ?
-     WHERE id = ?`,
-  ).bind(values.displayName, values.currentVersion, values.latestVersion, values.lang, id).run();
+  await ensureHistorySchema(db);
+  const nextId = `${values.product}::${values.device}::${values.module}`.toLowerCase();
+  if (nextId !== id) {
+    const conflict = await db.prepare('SELECT 1 AS found FROM ota_models WHERE id = ?').bind(nextId).first<Record<string, unknown>>();
+    if (conflict) throw new Error('目标 product/device/module 已存在另一条机型记录');
+    await db.batch([
+      db.prepare(
+        `INSERT INTO ota_models (
+           id, display_name, product, device, module, lang, minimum_known_version,
+           latest_version, packages_json, verified_at
+         )
+         SELECT ?, ?, ?, ?, ?, ?, ?, ?, packages_json, verified_at
+         FROM ota_models WHERE id = ?`,
+      ).bind(nextId, values.displayName, values.product, values.device, values.module, values.lang, values.currentVersion, values.latestVersion, id),
+      db.prepare('UPDATE ota_packages SET package_key = replace(package_key, ? || \'::\', ? || \'::\'), model_id = ? WHERE model_id = ?')
+        .bind(id, nextId, nextId, id),
+      db.prepare('UPDATE ota_checks SET model_id = ? WHERE model_id = ?').bind(nextId, id),
+      db.prepare('UPDATE ota_version_probes SET probe_key = replace(probe_key, ? || \'::\', ? || \'::\'), model_id = ? WHERE model_id = ?')
+        .bind(id, nextId, nextId, id),
+      db.prepare('UPDATE ota_monitor_credentials SET model_id = ? WHERE model_id = ?').bind(nextId, id),
+      db.prepare('DELETE FROM ota_models WHERE id = ?').bind(id),
+    ]);
+  } else {
+    await db.prepare(
+      `UPDATE ota_models
+       SET display_name = ?, product = ?, device = ?, module = ?, minimum_known_version = ?, latest_version = ?, lang = ?
+       WHERE id = ?`,
+    ).bind(values.displayName, values.product, values.device, values.module, values.currentVersion, values.latestVersion, values.lang, id).run();
+  }
+  return nextId;
+}
+
+export async function listAdminModels(db: D1Database) {
+  await ensureCommunitySchema(db);
+  await ensureHistorySchema(db);
+  const result = await db.prepare(
+    `SELECT m.id, m.display_name, m.product, m.device, m.module, m.lang,
+            m.minimum_known_version, m.latest_version, m.packages_json, m.verified_at,
+            CASE WHEN c.model_id IS NULL THEN 0 ELSE 1 END AS monitoring,
+            (SELECT COUNT(*) FROM ota_packages p WHERE p.model_id = m.id) AS package_count,
+            (SELECT COUNT(*) FROM ota_version_probes v WHERE v.model_id = m.id) AS probe_count,
+            (SELECT COUNT(*) FROM ota_checks ch WHERE ch.model_id = m.id) AS check_count
+     FROM ota_models m
+     LEFT JOIN ota_monitor_credentials c ON c.model_id = m.id
+     ORDER BY m.display_name COLLATE NOCASE ASC`,
+  ).all<Record<string, unknown>>();
+  return (result.results ?? []).map((row) => ({
+    id: String(row.id),
+    displayName: String(row.display_name),
+    product: String(row.product),
+    device: String(row.device),
+    module: String(row.module),
+    lang: String(row.lang),
+    currentVersion: String(row.minimum_known_version),
+    latestVersion: optionalString(row.latest_version),
+    verifiedAt: String(row.verified_at),
+    packages: JSON.parse(String(row.packages_json)),
+    monitoring: Number(row.monitoring) === 1,
+    packageCount: Number(row.package_count ?? 0),
+    probeCount: Number(row.probe_count ?? 0),
+    checkCount: Number(row.check_count ?? 0),
+  }));
 }
 
 export async function listCommunityModelsPage(

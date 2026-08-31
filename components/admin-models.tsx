@@ -3,15 +3,24 @@
 import { useState } from 'react';
 import type { CommunityModel } from '@/lib/ota/types';
 
+type AdminModel = CommunityModel & {
+  monitoring: boolean;
+  packageCount: number;
+  probeCount: number;
+  checkCount: number;
+  serial?: string;
+  deviceIdentity?: string;
+};
+
 export function AdminModels() {
   const [token, setToken] = useState('');
-  const [models, setModels] = useState<CommunityModel[]>([]);
+  const [models, setModels] = useState<AdminModel[]>([]);
   const [message, setMessage] = useState('');
 
   async function load() {
     setMessage('读取中…');
     const response = await fetch('/api/admin/models', { headers: { authorization: `Bearer ${token}` } });
-    const result = await response.json() as { models?: CommunityModel[]; error?: string };
+    const result = await response.json() as { models?: AdminModel[]; error?: string };
     if (!response.ok) {
       setMessage(result.error ?? '读取失败');
       return;
@@ -20,7 +29,7 @@ export function AdminModels() {
     setMessage(`已读取 ${result.models?.length ?? 0} 个机型`);
   }
 
-  async function save(model: CommunityModel) {
+  async function save(model: AdminModel, index: number) {
     setMessage(`正在保存 ${model.displayName}…`);
     const response = await fetch('/api/admin/models', {
       method: 'PATCH',
@@ -28,16 +37,32 @@ export function AdminModels() {
       body: JSON.stringify({
         id: model.id,
         displayName: model.displayName,
+        product: model.product,
+        device: model.device,
+        module: model.module,
         currentVersion: model.currentVersion,
         latestVersion: model.latestVersion ?? '',
         lang: model.lang,
+        serial: model.serial ?? '',
+        deviceIdentity: model.deviceIdentity ?? '',
       }),
     });
-    const result = await response.json() as { ok?: boolean; error?: string };
-    setMessage(response.ok ? '保存成功' : (result.error ?? '保存失败'));
+    const result = await response.json() as { ok?: boolean; id?: string; error?: string };
+    if (!response.ok) {
+      setMessage(result.error ?? '保存失败');
+      return;
+    }
+    setModels((current) => current.map((item, i) => i === index ? {
+      ...item,
+      id: result.id ?? item.id,
+      monitoring: item.monitoring || Boolean(item.serial && item.deviceIdentity),
+      serial: '',
+      deviceIdentity: '',
+    } : item));
+    setMessage('保存成功');
   }
 
-  function update(index: number, field: keyof CommunityModel, value: string) {
+  function update(index: number, field: keyof AdminModel, value: string) {
     setModels((current) => current.map((model, i) => i === index ? { ...model, [field]: value } : model));
   }
 
@@ -63,14 +88,24 @@ export function AdminModels() {
           <div className="mb-4">
             <h2 className="font-semibold">{model.product} · {model.device}</h2>
             <p className="mt-1 font-mono text-xs text-[var(--muted-foreground)]">{model.module}</p>
+            <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+              持续监测：{model.monitoring ? '已配置' : '未配置'} · 历史包 {model.packageCount} · 差分记录 {model.probeCount} · 检查 {model.checkCount} 次
+            </p>
+            <p className="mt-1 text-xs text-[var(--muted-foreground)]">最近验证：{new Date(model.verifiedAt).toLocaleString()}</p>
           </div>
           <div className="form-grid">
             <label>显示名称<input value={model.displayName} onChange={(event) => update(index, 'displayName', event.target.value)} /></label>
+            <label>Product<input value={model.product} onChange={(event) => update(index, 'product', event.target.value)} /></label>
+            <label>Device<input value={model.device} onChange={(event) => update(index, 'device', event.target.value)} /></label>
+            <label>Module<input value={model.module} onChange={(event) => update(index, 'module', event.target.value)} /></label>
             <label>最低已知版本<input value={model.currentVersion} onChange={(event) => update(index, 'currentVersion', event.target.value)} /></label>
             <label>最新版本<input value={model.latestVersion ?? ''} onChange={(event) => update(index, 'latestVersion', event.target.value)} /></label>
             <label>语言<input value={model.lang} onChange={(event) => update(index, 'lang', event.target.value)} /></label>
+            <label>新 SN（留空保持不变）<input value={model.serial ?? ''} onChange={(event) => update(index, 'serial', event.target.value)} autoComplete="off" /></label>
+            <label>新设备身份 / MAC（留空保持不变）<input value={model.deviceIdentity ?? ''} onChange={(event) => update(index, 'deviceIdentity', event.target.value)} autoComplete="off" /></label>
           </div>
-          <button className="primary-button mt-4" type="button" onClick={() => save(model)}>保存</button>
+          <p className="mt-3 text-xs text-[var(--muted-foreground)]">修改 Product / Device / Module 会同步迁移历史包、差分记录、检查记录和持续监测凭据；已有 SN/MAC 不会明文回显。</p>
+          <button className="primary-button mt-4" type="button" onClick={() => save(model, index)}>保存</button>
         </section>
       ))}
     </div>
