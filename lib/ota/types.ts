@@ -31,6 +31,13 @@ export type OtaRuntimeConfig = OtaPublicConfig & {
   deviceIdentity: string;
 };
 
+export type CommunityModel = OtaPublicConfig & {
+  id: string;
+  latestVersion: string | null;
+  verifiedAt: string;
+  packages: OtaPackage[];
+};
+
 export type RuntimeEnv = {
   DB: D1Database;
   MITV_PRODUCT?: string;

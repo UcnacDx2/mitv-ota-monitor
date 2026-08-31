@@ -1,6 +1,8 @@
 import { env } from 'cloudflare:workers';
+import Link from 'next/link';
+import { ContributionForm } from '@/components/contribution-form';
 import { getPublicConfig } from '@/lib/ota/config';
-import { readStatus } from '@/lib/ota/store';
+import { listCommunityModels, readStatus } from '@/lib/ota/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +21,7 @@ function formatBytes(bytes: number | null) {
 export default async function Home() {
   const config = getPublicConfig(env);
   const status = await readStatus(env.DB);
+  const communityModels = await listCommunityModels(env.DB);
   const packages = status?.packages ?? [];
 
   return (
@@ -29,7 +32,7 @@ export default async function Home() {
             <p className="eyebrow">MiTV OTA Monitor</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">小米电视更新监测</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-              每日向小米官方 OTA 接口检查一次更新。序列号与设备身份仅保存在服务端秘密中，不进入页面或仓库。
+              向小米官方 OTA 接口验证并整理电视更新数据。你也可以贡献自己的机型；设备身份只用于当次验证，不进入公开机型库。
             </p>
           </div>
           <span className={`status-pill ${status?.ok ? 'status-ok' : 'status-idle'}`}>
@@ -64,7 +67,7 @@ export default async function Home() {
                 {config.product} · {config.device}
               </p>
             </div>
-            <a className="api-link" href="/api/status">JSON 状态接口</a>
+            <Link className="api-link" href="/api/status">JSON 状态接口</Link>
           </div>
 
           {status?.error ? (
@@ -76,7 +79,7 @@ export default async function Home() {
               <table className="w-full min-w-[720px] text-left text-sm">
                 <thead>
                   <tr>
-                    <th>类型</th><th>版本</th><th>基础版本</th><th>大小</th><th>MD5</th><th>文件</th>
+                    <th>类型</th><th>版本</th><th>基础版本</th><th>大小</th><th>MD5</th><th>下载</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -87,7 +90,11 @@ export default async function Home() {
                       <td>{pkg.baseVersion ?? '—'}</td>
                       <td>{formatBytes(pkg.fileSize)}</td>
                       <td className="font-mono text-xs">{pkg.md5 ?? '—'}</td>
-                      <td className="max-w-[280px] truncate font-mono text-xs" title={pkg.fileName ?? ''}>{pkg.fileName ?? '—'}</td>
+                      <td className="max-w-[300px] text-xs">
+                        {pkg.mirrors[0] ? (
+                          <a className="download-link" href={pkg.mirrors[0]} rel="noreferrer">{pkg.fileName ?? '下载 OTA'}</a>
+                        ) : (pkg.fileName ?? '—')}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -96,8 +103,53 @@ export default async function Home() {
           )}
         </section>
 
+        <section className="panel mt-6">
+          <div className="border-b border-[var(--border)] px-5 py-4 sm:px-6">
+            <p className="eyebrow">Community registry</p>
+            <h2 className="mt-1 font-semibold">已验证机型</h2>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">只有小米 OTA 实时验证成功的提交才会出现在这里。</p>
+          </div>
+          {communityModels.length === 0 ? (
+            <div className="empty-state">还没有社区贡献机型。下面可以提交第一台。</div>
+          ) : (
+            <div className="model-list">
+              {communityModels.map((model) => (
+                <article className="model-card" key={model.id}>
+                  <div>
+                    <h3>{model.displayName}</h3>
+                    <p className="font-mono text-xs text-[var(--muted-foreground)]">{model.product} · {model.device}</p>
+                  </div>
+                  <dl>
+                    <div><dt>最低已知版本</dt><dd>{model.currentVersion}</dd></div>
+                    <div><dt>验证到的最新版本</dt><dd>{model.latestVersion ?? '—'}</dd></div>
+                    <div><dt>验证时间</dt><dd>{new Date(model.verifiedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</dd></div>
+                  </dl>
+                  <div className="package-links">
+                    {model.packages.map((pkg, index) => (
+                      pkg.mirrors[0] ? (
+                        <a key={`${model.id}-${index}`} href={pkg.mirrors[0]} rel="noreferrer">
+                          {pkg.type === 'FULL_PACKAGE' ? '完整包' : '增量包'} · {formatBytes(pkg.fileSize)}
+                        </a>
+                      ) : null
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="panel mt-6">
+          <div className="border-b border-[var(--border)] px-5 py-4 sm:px-6">
+            <p className="eyebrow">Contribute</p>
+            <h2 className="mt-1 font-semibold">贡献你的电视机型</h2>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">请填写你确认过的最低版本。提交后服务器会立刻向 Xiaomi OTA 验证；验证失败不会加入名单。</p>
+          </div>
+          <div className="p-5 sm:p-6"><ContributionForm /></div>
+        </section>
+
         <footer className="mt-6 text-xs leading-5 text-[var(--muted-foreground)]">
-          仅展示小米 OTA 服务返回的版本元数据；不会代理或重新分发固件文件。
+          仅展示小米 OTA 服务返回的版本元数据与官方 CDN 链接；本站不会代理或重新分发固件文件。
         </footer>
       </div>
     </main>

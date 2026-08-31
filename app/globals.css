@@ -98,11 +98,31 @@ body {
 .status-idle { background:var(--muted); color:var(--muted-foreground); }
 .api-link { border:1px solid var(--border); transition:background 120ms ease; }
 .api-link:hover { background:var(--muted); }
+.download-link,.package-links a { color:var(--primary); text-decoration:underline; text-underline-offset:3px; overflow-wrap:anywhere; }
 th,td { border-bottom:1px solid var(--border); padding:.8rem 1rem; vertical-align:top; }
 th { background:color-mix(in oklab,var(--muted) 65%,transparent); font-size:.72rem; font-weight:600; color:var(--muted-foreground); }
 tbody tr:last-child td { border-bottom:0; }
 .empty-state { padding:3rem 1.5rem; text-align:center; font-size:.9rem; color:var(--muted-foreground); }
 .error-box { border:1px solid oklch(.8 .08 25); border-radius:.75rem; background:oklch(.96 .035 25); padding:.9rem 1rem; color:oklch(.42 .13 25); font-size:.85rem; }
+.model-list { display:grid; gap:1px; background:var(--border); }
+.model-card { display:grid; gap:1rem; background:var(--card); padding:1.25rem 1.5rem; }
+.model-card h3 { font-weight:650; }
+.model-card dl { display:grid; gap:.65rem; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); }
+.model-card dt { font-size:.72rem; color:var(--muted-foreground); }
+.model-card dd { margin-top:.2rem; font-size:.85rem; overflow-wrap:anywhere; }
+.package-links { display:flex; flex-wrap:wrap; gap:.75rem 1rem; font-size:.8rem; }
+.contribution-form { display:grid; gap:1rem; }
+.form-grid { display:grid; gap:.9rem; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); }
+.form-grid label { display:grid; gap:.35rem; font-size:.78rem; font-weight:600; }
+.form-grid input { width:100%; border:1px solid var(--border); border-radius:.7rem; background:var(--background); padding:.65rem .75rem; font:inherit; font-weight:400; }
+.form-grid input:focus { outline:2px solid color-mix(in oklab,var(--primary) 35%,transparent); outline-offset:1px; }
+.privacy-note { font-size:.78rem; line-height:1.5; color:var(--muted-foreground); }
+.primary-button { width:fit-content; border-radius:.75rem; background:var(--primary); color:var(--primary-foreground); padding:.7rem 1rem; font-size:.85rem; font-weight:650; }
+.primary-button:disabled { opacity:.6; cursor:wait; }
+.form-result { border-radius:.7rem; padding:.7rem .8rem; font-size:.8rem; }
+.result-loading { background:var(--muted); color:var(--muted-foreground); }
+.result-success { background:oklch(.93 .08 150); color:oklch(.35 .12 150); }
+.result-error { background:oklch(.96 .035 25); color:oklch(.42 .13 25); }
 
 .dark {
   --background: oklch(0.145 0 0);

@@ -1,0 +1,90 @@
+import { createHash } from 'node:crypto';
+import { env } from 'cloudflare:workers';
+import { claimContributionWindow, upsertCommunityModel } from '@/lib/ota/store';
+import type { OtaPublicConfig } from '@/lib/ota/types';
+import { checkXiaomiOta } from '@/lib/ota/xiaomi';
+
+const MODEL_VALUE = /^[A-Za-z0-9._-]{2,96}$/;
+const VERSION_VALUE = /^[A-Za-z0-9._-]{3,96}$/;
+const LANG_VALUE = /^[A-Za-z]{2}_[A-Za-z]{2}$/;
+
+function readString(value: unknown, name: string, maxLength: number) {
+  if (typeof value !== 'string') throw new Error(`${name} is required`);
+  const normalized = value.trim();
+  if (!normalized || normalized.length > maxLength) throw new Error(`${name} is invalid`);
+  return normalized;
+}
+
+function requestFingerprint(request: Request) {
+  const ip = request.headers.get('cf-connecting-ip') ?? 'unknown';
+  const userAgent = request.headers.get('user-agent') ?? 'unknown';
+  return createHash('sha256').update(`${ip}\n${userAgent}`).digest('hex');
+}
+
+export async function POST(request: Request) {
+  try {
+    const raw = await request.text();
+    if (raw.length > 4096) {
+      return Response.json({ ok: false, error: '提交内容过大' }, { status: 413 });
+    }
+    const input = JSON.parse(raw) as Record<string, unknown>;
+
+    const displayName = readString(input.displayName, 'displayName', 80);
+    const product = readString(input.product, 'product', 96);
+    const device = readString(input.device, 'device', 96);
+    const moduleName = readString(input.module, 'module', 96);
+    const lang = readString(input.lang, 'lang', 12);
+    const currentVersion = readString(input.minimumKnownVersion, 'minimumKnownVersion', 96);
+    const serial = readString(input.serial, 'serial', 128);
+    const deviceIdentity = readString(input.deviceIdentity, 'deviceIdentity', 128);
+
+    if (![product, device, moduleName].every((value) => MODEL_VALUE.test(value))) {
+      return Response.json({ ok: false, error: '机型参数格式不合法' }, { status: 400 });
+    }
+    if (!VERSION_VALUE.test(currentVersion) || !LANG_VALUE.test(lang)) {
+      return Response.json({ ok: false, error: '版本号或语言格式不合法' }, { status: 400 });
+    }
+
+    const allowed = await claimContributionWindow(env.DB, requestFingerprint(request));
+    if (!allowed) {
+      return Response.json({ ok: false, error: '提交过于频繁，请一分钟后再试' }, { status: 429 });
+    }
+
+    const config: OtaPublicConfig = {
+      displayName,
+      product,
+      device,
+      module: moduleName,
+      lang,
+      currentVersion,
+    };
+    const status = await checkXiaomiOta({ ...config, serial, deviceIdentity });
+
+    if (!status.ok || !status.latestVersion || status.packages.length === 0) {
+      return Response.json(
+        {
+          ok: false,
+          error: '小米 OTA 未确认该组信息可获得更新，未加入机型库',
+          detail: status.error,
+        },
+        { status: 422 },
+      );
+    }
+
+    await upsertCommunityModel(env.DB, config, status);
+    return Response.json(
+      {
+        ok: true,
+        model: { displayName, product, device, module: moduleName, lang, minimumKnownVersion: currentVersion },
+        latestVersion: status.latestVersion,
+        packageCount: status.packages.length,
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    return Response.json(
+      { ok: false, error: error instanceof Error ? error.message : '提交失败' },
+      { status: 400 },
+    );
+  }
+}
