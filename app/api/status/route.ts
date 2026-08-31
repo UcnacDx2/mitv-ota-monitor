@@ -6,14 +6,13 @@ import { checkXiaomiOta } from '@/lib/ota/xiaomi';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const config = getPublicConfig(env);
   let status = await readStatus(env.DB);
-  if (!status || status.currentVersion !== config.currentVersion) {
+  if (!status) {
     status = await checkXiaomiOta(getRuntimeConfig(env));
     await writeStatus(env.DB, status);
   }
   return Response.json(
-    { config, status },
+    { config: getPublicConfig(env), status },
     { headers: { 'cache-control': 'no-store' } },
   );
 }
