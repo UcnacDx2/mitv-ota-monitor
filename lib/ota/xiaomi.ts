@@ -63,7 +63,7 @@ export function buildXiaomiOtaRequest(config: OtaRuntimeConfig) {
     product: config.product,
     device: config.device,
     lang: config.lang,
-    identity: { sn: config.serial, imei_md5: config.deviceIdentity },
+    identity: { sn: config.serial, imei: config.deviceIdentity },
     properties: { usermode: '1' },
     modules: [{ module: config.module, version: config.currentVersion }],
   };
@@ -79,7 +79,7 @@ export function buildXiaomiOtaRequest(config: OtaRuntimeConfig) {
       sign,
       method: METHOD,
       sign_type: 'md5',
-      lang: config.lang,
+      lang: 'cz',
     },
     body,
   };
@@ -93,7 +93,10 @@ export async function checkXiaomiOta(config: OtaRuntimeConfig): Promise<OtaStatu
   try {
     const response = await fetch(ENDPOINT, {
       method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        'user-agent': 'Apache-HttpClient/UNAVAILABLE (java 1.4)',
+      },
       body: buildXiaomiOtaRequest(config),
     });
     const text = await response.text();
@@ -103,6 +106,15 @@ export async function checkXiaomiOta(config: OtaRuntimeConfig): Promise<OtaStatu
       payload = JSON.parse(text);
     } catch {
       throw new Error('OTA endpoint returned a non-JSON response');
+    }
+    const root = asObject(payload);
+    const body = asObject(root?.body);
+    const businessCode = asNumber(body?.code);
+    if (businessCode !== 200) {
+      const message = asString(body?.message);
+      throw new Error(
+        `OTA endpoint returned business code ${String(businessCode ?? 'unknown')}${message ? ` (${message})` : ''}`,
+      );
     }
     const packages = parsePackages(payload);
     return {
