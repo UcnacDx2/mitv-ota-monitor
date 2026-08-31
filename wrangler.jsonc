@@ -31,10 +31,13 @@
   },
   "routes": [
     {
-      "pattern": "mitvota.000311.xyz",
+      "pattern": "mitvota.111917.xyz",
       "custom_domain": true
     }
   ],
+  "triggers": {
+    "crons": ["0 3 * * *"]
+  },
   "observability": {
     "enabled": true
   }
