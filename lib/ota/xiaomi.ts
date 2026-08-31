@@ -110,6 +110,16 @@ export async function checkXiaomiOta(config: OtaRuntimeConfig): Promise<OtaStatu
     const root = asObject(payload);
     const body = asObject(root?.body);
     const businessCode = asNumber(body?.code);
+    if (businessCode === 210) {
+      return {
+        checkedAt,
+        ok: true,
+        currentVersion: config.currentVersion,
+        latestVersion: config.currentVersion,
+        packages: [],
+        error: null,
+      };
+    }
     if (businessCode !== 200) {
       const message = asString(body?.message);
       throw new Error(

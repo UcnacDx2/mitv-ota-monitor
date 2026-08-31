@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import Link from 'next/link';
 import { ContributionForm } from '@/components/contribution-form';
 import { getPublicConfig } from '@/lib/ota/config';
-import { listCommunityModels, readStatus } from '@/lib/ota/store';
+import { listCommunityModels, listHistoricalPackages, readStatus } from '@/lib/ota/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +22,7 @@ export default async function Home() {
   const config = getPublicConfig(env);
   const status = await readStatus(env.DB);
   const communityModels = await listCommunityModels(env.DB);
+  const historicalPackages = await listHistoricalPackages(env.DB, config);
   const packages = status?.packages ?? [];
 
   return (
@@ -32,7 +33,7 @@ export default async function Home() {
             <p className="eyebrow">MiTV OTA Monitor</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">小米电视更新监测</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-              向小米官方 OTA 接口验证并整理电视更新数据。你也可以贡献自己的机型；设备身份只用于当次验证，不进入公开机型库。
+              向小米官方 OTA 接口验证并整理电视更新数据。你也可以贡献自己的机型；设备身份不会公开，只有明确开启持续监测时才会加密保存。
             </p>
           </div>
           <span className={`status-pill ${status?.ok ? 'status-ok' : 'status-idle'}`}>
@@ -94,6 +95,37 @@ export default async function Home() {
                         {pkg.mirrors[0] ? (
                           <a className="download-link" href={pkg.mirrors[0]} rel="noreferrer">{pkg.fileName ?? '下载 OTA'}</a>
                         ) : (pkg.fileName ?? '—')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        <section className="panel mt-6">
+          <div className="border-b border-[var(--border)] px-5 py-4 sm:px-6">
+            <p className="eyebrow">Archive</p>
+            <h2 className="mt-1 font-semibold">历史发现固件</h2>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">曾经从 Xiaomi OTA 获取到的包会永久保留，不会被后续检查覆盖。</p>
+          </div>
+          {historicalPackages.length === 0 ? (
+            <div className="empty-state">暂无历史归档。下一次检查后会自动保存。</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px] text-left text-sm">
+                <thead><tr><th>版本</th><th>类型</th><th>基础版本</th><th>大小</th><th>首次发现</th><th>下载</th></tr></thead>
+                <tbody>
+                  {historicalPackages.map((pkg, index) => (
+                    <tr key={`${pkg.modelId}-${pkg.md5 ?? pkg.fileName ?? index}`}>
+                      <td className="font-medium">{pkg.version ?? '—'}</td>
+                      <td>{pkg.type ?? '—'}</td>
+                      <td>{pkg.baseVersion ?? '—'}</td>
+                      <td>{formatBytes(pkg.fileSize)}</td>
+                      <td>{new Date(pkg.firstSeenAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</td>
+                      <td className="max-w-[300px] text-xs">
+                        {pkg.mirrors[0] ? <a className="download-link" href={pkg.mirrors[0]} rel="noreferrer">{pkg.fileName ?? '下载 OTA'}</a> : (pkg.fileName ?? '—')}
                       </td>
                     </tr>
                   ))}

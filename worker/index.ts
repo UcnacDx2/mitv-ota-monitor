@@ -1,13 +1,10 @@
 import handler from 'vinext/server/fetch-handler';
-import { getRuntimeConfig } from '@/lib/ota/config';
-import { writeStatus } from '@/lib/ota/store';
+import { runAllChecks } from '@/lib/ota/monitor';
 import type { RuntimeEnv } from '@/lib/ota/types';
-import { checkXiaomiOta } from '@/lib/ota/xiaomi';
 
 async function runCheck(env: RuntimeEnv) {
-  const status = await checkXiaomiOta(getRuntimeConfig(env));
-  await writeStatus(env.DB, status);
-  if (!status.ok) throw new Error(status.error || 'OTA check failed');
+  const result = await runAllChecks(env);
+  if (result.failed) throw new Error(`${result.failed}/${result.checked} OTA checks failed`);
 }
 
 export default {

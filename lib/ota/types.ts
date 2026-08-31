@@ -38,6 +38,18 @@ export type CommunityModel = OtaPublicConfig & {
   packages: OtaPackage[];
 };
 
+export type HistoricalPackage = OtaPackage & {
+  modelId: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+};
+
+export type MonitorTarget = OtaPublicConfig & {
+  modelId: string;
+  credentialIv: string;
+  credentialCiphertext: string;
+};
+
 export type RuntimeEnv = {
   DB: D1Database;
   MITV_PRODUCT?: string;

@@ -1,4 +1,4 @@
-import type { CommunityModel, OtaPublicConfig, OtaStatus } from './types';
+import type { CommunityModel, HistoricalPackage, MonitorTarget, OtaPackage, OtaPublicConfig, OtaStatus } from './types';
 
 const CREATE_TABLE = `CREATE TABLE IF NOT EXISTS ota_status (
   id TEXT PRIMARY KEY NOT NULL,
@@ -28,6 +28,38 @@ const CREATE_RATE_LIMIT_TABLE = `CREATE TABLE IF NOT EXISTS contribution_rate_li
   last_submitted_at TEXT NOT NULL
 )`;
 
+const CREATE_CHECKS_TABLE = `CREATE TABLE IF NOT EXISTS ota_checks (
+  id INTEGER PRIMARY KEY,
+  model_id TEXT NOT NULL,
+  checked_at TEXT NOT NULL,
+  ok INTEGER NOT NULL,
+  current_version TEXT NOT NULL,
+  latest_version TEXT,
+  package_count INTEGER NOT NULL,
+  error TEXT
+)`;
+
+const CREATE_PACKAGES_TABLE = `CREATE TABLE IF NOT EXISTS ota_packages (
+  package_key TEXT PRIMARY KEY NOT NULL,
+  model_id TEXT NOT NULL,
+  version TEXT,
+  base_version TEXT,
+  type TEXT,
+  checksum TEXT,
+  file_size INTEGER,
+  file_name TEXT,
+  mirrors_json TEXT NOT NULL,
+  first_seen_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL
+)`;
+
+const CREATE_MONITOR_CREDENTIALS_TABLE = `CREATE TABLE IF NOT EXISTS ota_monitor_credentials (
+  model_id TEXT PRIMARY KEY NOT NULL,
+  credential_iv TEXT NOT NULL,
+  credential_ciphertext TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)`;
+
 async function ensureSchema(db: D1Database) {
   await db.prepare(CREATE_TABLE).run();
 }
@@ -37,6 +69,12 @@ async function ensureCommunitySchema(db: D1Database) {
     db.prepare(CREATE_MODELS_TABLE),
     db.prepare(CREATE_RATE_LIMIT_TABLE),
   ]);
+}
+
+async function ensureHistorySchema(db: D1Database) {
+  await db.prepare(CREATE_CHECKS_TABLE).run();
+  await db.prepare(CREATE_PACKAGES_TABLE).run();
+  await db.prepare(CREATE_MONITOR_CREDENTIALS_TABLE).run();
 }
 
 function optionalString(value: unknown) {
@@ -89,6 +127,94 @@ export async function readStatus(db: D1Database): Promise<OtaStatus | null> {
 
 function modelId(config: OtaPublicConfig) {
   return `${config.product}::${config.device}::${config.module}`.toLowerCase();
+}
+
+function packageKey(model: string, pkg: OtaPackage) {
+  return [model, pkg.version ?? '', pkg.type ?? '', pkg.baseVersion ?? '', pkg.md5 ?? '', pkg.fileName ?? '']
+    .join('::')
+    .toLowerCase();
+}
+
+export async function archiveOtaObservation(db: D1Database, config: OtaPublicConfig, status: OtaStatus) {
+  await ensureHistorySchema(db);
+  const id = modelId(config);
+  await db.prepare(
+    `INSERT INTO ota_checks (model_id, checked_at, ok, current_version, latest_version, package_count, error)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(id, status.checkedAt, status.ok ? 1 : 0, status.currentVersion, status.latestVersion, status.packages.length, status.error).run();
+
+  for (const pkg of status.packages) {
+    await db.prepare(
+      `INSERT INTO ota_packages (
+         package_key, model_id, version, base_version, type, checksum, file_size, file_name, mirrors_json, first_seen_at, last_seen_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(package_key) DO UPDATE SET mirrors_json=excluded.mirrors_json, last_seen_at=excluded.last_seen_at`,
+    ).bind(
+      packageKey(id, pkg), id, pkg.version, pkg.baseVersion, pkg.type, pkg.md5, pkg.fileSize,
+      pkg.fileName, JSON.stringify(pkg.mirrors), status.checkedAt, status.checkedAt,
+    ).run();
+  }
+}
+
+export async function listHistoricalPackages(db: D1Database, config: OtaPublicConfig): Promise<HistoricalPackage[]> {
+  await ensureHistorySchema(db);
+  const result = await db.prepare(
+    `SELECT model_id, version, base_version, type, checksum, file_size, file_name, mirrors_json, first_seen_at, last_seen_at
+     FROM ota_packages WHERE model_id = ? ORDER BY first_seen_at DESC`,
+  ).bind(modelId(config)).all<Record<string, unknown>>();
+  return (result.results ?? []).map((row) => ({
+    modelId: String(row.model_id),
+    version: optionalString(row.version),
+    baseVersion: optionalString(row.base_version),
+    type: optionalString(row.type),
+    md5: optionalString(row.checksum),
+    fileSize: row.file_size == null ? null : Number(row.file_size),
+    fileName: optionalString(row.file_name),
+    mirrors: JSON.parse(String(row.mirrors_json)),
+    firstSeenAt: String(row.first_seen_at),
+    lastSeenAt: String(row.last_seen_at),
+  }));
+}
+
+export async function saveMonitorCredentials(
+  db: D1Database,
+  config: OtaPublicConfig,
+  credentialIv: string,
+  credentialCiphertext: string,
+) {
+  await ensureCommunitySchema(db);
+  await ensureHistorySchema(db);
+  await db.prepare(
+    `INSERT INTO ota_monitor_credentials (model_id, credential_iv, credential_ciphertext, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(model_id) DO UPDATE SET
+       credential_iv=excluded.credential_iv,
+       credential_ciphertext=excluded.credential_ciphertext,
+       updated_at=excluded.updated_at`,
+  ).bind(modelId(config), credentialIv, credentialCiphertext, new Date().toISOString()).run();
+}
+
+export async function listMonitorTargets(db: D1Database): Promise<MonitorTarget[]> {
+  await ensureCommunitySchema(db);
+  await ensureHistorySchema(db);
+  const result = await db.prepare(
+    `SELECT m.id, m.display_name, m.product, m.device, m.module, m.lang,
+            m.minimum_known_version, c.credential_iv, c.credential_ciphertext
+     FROM ota_models m
+     INNER JOIN ota_monitor_credentials c ON c.model_id = m.id
+     ORDER BY m.verified_at ASC`,
+  ).all<Record<string, unknown>>();
+  return (result.results ?? []).map((row) => ({
+    modelId: String(row.id),
+    displayName: String(row.display_name),
+    product: String(row.product),
+    device: String(row.device),
+    module: String(row.module),
+    lang: String(row.lang),
+    currentVersion: String(row.minimum_known_version),
+    credentialIv: String(row.credential_iv),
+    credentialCiphertext: String(row.credential_ciphertext),
+  }));
 }
 
 export async function upsertCommunityModel(

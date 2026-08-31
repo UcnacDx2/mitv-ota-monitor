@@ -1,7 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { getRuntimeConfig } from '@/lib/ota/config';
-import { writeStatus } from '@/lib/ota/store';
-import { checkXiaomiOta } from '@/lib/ota/xiaomi';
+import { runAllChecks } from '@/lib/ota/monitor';
 
 export async function POST(request: Request) {
   if (!env.CHECK_TOKEN) {
@@ -11,7 +9,6 @@ export async function POST(request: Request) {
   if (auth !== `Bearer ${env.CHECK_TOKEN}`) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const status = await checkXiaomiOta(getRuntimeConfig(env));
-  await writeStatus(env.DB, status);
-  return Response.json(status, { status: status.ok ? 200 : 502 });
+  const result = await runAllChecks(env);
+  return Response.json(result, { status: result.failed ? 502 : 200 });
 }
