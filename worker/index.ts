@@ -1,12 +1,10 @@
 import handler from 'vinext/server/fetch-handler';
-import { runScheduledChecks } from '@/lib/ota/scheduled';
+import { runAllChecks } from '@/lib/ota/monitor';
 import type { RuntimeEnv } from '@/lib/ota/types';
 
 async function runCheck(env: RuntimeEnv) {
-  const run = await runScheduledChecks(env);
-  if (run.ran && run.state.ok === false) {
-    throw new Error(run.state.error ?? 'scheduled OTA check failed');
-  }
+  const result = await runAllChecks(env);
+  if (result.failed) throw new Error(`${result.failed}/${result.checked} OTA checks failed`);
 }
 
 export default {
