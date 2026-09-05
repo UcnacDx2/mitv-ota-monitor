@@ -1,0 +1,39 @@
+name: Production scheduler probe
+
+on:
+  push:
+    paths:
+      - '.github/workflows/production-probe.yml'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Wait for deployed scheduler API and trigger one check
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..12}; do
+            code="$(curl --silent --show-error --output /tmp/status.json --write-out '%{http_code}' \
+              https://mitv-ota.111917.xyz/api/status || true)"
+            echo "status attempt ${attempt}: HTTP ${code}"
+            cat /tmp/status.json || true
+            echo
+
+            if [[ "${code}" == "200" ]] && grep -q '"scheduler"' /tmp/status.json; then
+              echo 'new deployment detected; invoking guarded cron endpoint'
+              curl --fail-with-body --silent --show-error \
+                https://mitv-ota.111917.xyz/api/cron | tee /tmp/cron.json
+              echo
+              exit 0
+            fi
+
+            sleep 10
+          done
+
+          echo 'production did not expose the new scheduler API during this probe' >&2
+          exit 1
