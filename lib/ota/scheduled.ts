@@ -29,12 +29,20 @@ async function ensureJobStateSchema(db: D1Database) {
   await db.prepare(CREATE_JOB_STATE_TABLE).run();
 }
 
+function nullableString(value: unknown) {
+  return typeof value === 'string' ? value : null;
+}
+
 function parseState(row: Record<string, unknown>): ScheduledCheckState {
+  if (typeof row.last_started_at !== 'string') {
+    throw new Error('Invalid scheduled check state');
+  }
+
   return {
-    lastStartedAt: String(row.last_started_at),
-    lastFinishedAt: row.last_finished_at == null ? null : String(row.last_finished_at),
+    lastStartedAt: row.last_started_at,
+    lastFinishedAt: nullableString(row.last_finished_at),
     ok: row.last_ok == null ? null : Number(row.last_ok) === 1,
-    error: row.last_error == null ? null : String(row.last_error),
+    error: nullableString(row.last_error),
   };
 }
 
@@ -108,7 +116,7 @@ export async function runScheduledChecks(
   try {
     const result = await runAllChecks(env);
     const error = result.failed
-      ? `${result.failed}/${result.checked} OTA checks failed`
+      ? [result.failed, '/', result.checked, ' OTA checks failed'].join('')
       : null;
     const finishedAt = await finishScheduledCheck(
       env.DB,
